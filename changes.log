@@ -1,0 +1,7 @@
+@ASB_12-2021
+319968: Fix NPE on getTitle() | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319968
+319969: Fix serialization bug in GpsNavigationMessage | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319969
+319970: Do not show the notification footer until the user is set up. | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319970
+319971: DO NOT MERGE KeyStore ChunkedStreamer must tolerate update consuming 0 bytes. | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319971
+319972: Disallow overlays for ResolverActivity | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319972
+319973: Import translations. DO NOT MERGE ANYWHERE | https://review.lineageos.org/c/LineageOS/android_frameworks_base/+/319973
