@@ -490,8 +490,9 @@ public class CrossProfileAppsServiceImpl extends ICrossProfileApps.Stub {
         // Kill the UID before sending the broadcast to ensure that apps can be informed when
         // their app-op has been revoked.
         maybeKillUid(packageName, uid, hadPermission);
-        sendCanInteractAcrossProfilesChangedBroadcast(packageName, UserHandle.of(profileId));
-        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode, logMetrics);
+
+        sendCanInteractAcrossProfilesChangedBroadcast(packageName, UserHandle.of(userId));
+        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode, userId, logMetrics);
     }
 
     /**
@@ -509,7 +510,7 @@ public class CrossProfileAppsServiceImpl extends ICrossProfileApps.Stub {
     }
 
     private void maybeLogSetInteractAcrossProfilesAppOp(
-            String packageName, @Mode int newMode, boolean logMetrics) {
+            String packageName, @Mode int newMode, @UserIdInt int userId, boolean logMetrics) {
         if (!logMetrics) {
             return;
         }

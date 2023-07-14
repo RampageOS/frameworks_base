@@ -178,11 +178,21 @@ public class ScreenshotHelper {
         }
     };
 
+    private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            synchronized (mScreenshotLock) {
+                if (ACTION_USER_SWITCHED.equals(intent.getAction())) {
+                    resetConnection();
+                }
+            }
+        }
+    };
+
     public ScreenshotHelper(Context context) {
         mContext = context;
         IntentFilter filter = new IntentFilter(ACTION_USER_SWITCHED);
         mContext.registerReceiver(mBroadcastReceiver, filter);
-        mStitchImageUtility = new StitchImageUtility(mContext);
     }
 
     /**
@@ -357,7 +367,9 @@ public class ScreenshotHelper {
                             break;
                         case SCREENSHOT_MSG_PROCESS_COMPLETE:
                             synchronized (mScreenshotLock) {
-                                resetConnection();
+                                if (myConn != null && mScreenshotConnection == myConn) {
+                                    resetConnection();
+                                }
                             }
                             break;
                     }
