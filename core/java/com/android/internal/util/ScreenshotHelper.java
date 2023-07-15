@@ -26,8 +26,6 @@ import android.os.UserHandle;
 import android.util.Log;
 import android.view.WindowManager;
 
-import com.android.internal.custom.screenshot.StitchImageUtility;
-
 import java.util.function.Consumer;
 
 public class ScreenshotHelper {
@@ -165,7 +163,6 @@ public class ScreenshotHelper {
     private IBinder mScreenshotService = null;
     private ServiceConnection mScreenshotConnection = null;
     private final Context mContext;
-    private final StitchImageUtility mStitchImageUtility;
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -325,10 +322,6 @@ public class ScreenshotHelper {
             ScreenshotRequest screenshotRequest, @Nullable Consumer<Uri> completionConsumer,
             final String focusedPackageName) {
         synchronized (mScreenshotLock) {
-            if (screenshotType == WindowManager.TAKE_SCREENSHOT_FULLSCREEN &&
-                    mStitchImageUtility.takeScreenShot(focusedPackageName)){
-                return;
-            }
             final Runnable mScreenshotTimeout = () -> {
                 synchronized (mScreenshotLock) {
                     if (mScreenshotConnection != null) {
