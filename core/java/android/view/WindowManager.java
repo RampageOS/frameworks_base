@@ -2055,7 +2055,7 @@ public interface WindowManager extends ViewManager {
          * @hide
          */
         public static final int PRIVATE_FLAG_PREVENT_POWER_KEY = 0x20000000;
-
+	/*	
          * Flag to indicate that the window is a trusted overlay.
          * @hide
          */
