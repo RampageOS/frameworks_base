@@ -4863,6 +4863,15 @@ public class PermissionManagerService extends IPermissionManager.Stub {
         }
 
         @Override
+        public void revokeRuntimePermissionsIfGroupChanged(
+                @NonNull AndroidPackage newPackage,
+                @NonNull AndroidPackage oldPackage,
+                @NonNull ArrayList<String> allPackageNames) {
+            PermissionManagerService.this.revokeRuntimePermissionsIfGroupChanged(newPackage,
+                    oldPackage, allPackageNames, mDefaultPermissionCallback);
+        }
+        
+        @Override
         public void revokeRuntimePermissionsIfPermissionDefinitionChanged(
                 @NonNull List<String> permissionsToRevoke,
                 @NonNull ArrayList<String> allPackageNames) {
