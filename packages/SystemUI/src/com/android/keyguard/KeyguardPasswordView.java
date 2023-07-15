@@ -374,7 +374,7 @@ public class KeyguardPasswordView extends KeyguardAbsKeyInputView
                 if (entry.size() > MINIMUM_PASSWORD_LENGTH_BEFORE_REPORT
                         && kpvCheckPassword(entry)) {
                     mCallback.reportUnlockAttempt(userId, true, 0);
-                    mCallback.dismiss(true, userId);
+                    mCallback.dismiss(true, userId,getSecurityMode());
                     resetPasswordText(true, true);
                 }
             }
@@ -402,6 +402,14 @@ public class KeyguardPasswordView extends KeyguardAbsKeyInputView
     public CharSequence getTitle() {
         return getContext().getString(
                 com.android.internal.R.string.keyguard_accessibility_password_unlock);
+    }
+    
+    private boolean kpvCheckPassword(LockscreenCredential entry) {
+        try {
+            return mLockPatternUtils.checkCredential(entry, userId, null);
+        } catch (RequestThrottledException ex) {
+            return false;
+        }
     }
 
     @Override
