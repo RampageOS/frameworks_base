@@ -5011,17 +5011,6 @@ public final class ActiveServices {
             return true;
         }
 
-<<<<<<< HEAD
-        if (mAm.mInternal.isTempAllowlistedForFgsWhileInUse(callingUid)) {
-            return true;
-        }
-
-        final boolean isWhiteListedPackage =
-                mWhiteListAllowWhileInUsePermissionInFgs.contains(callingPackage);
-        if (isWhiteListedPackage) {
-            return true;
-=======
-
         if (verifyPackage(callingPackage, callingUid)) { 
             final boolean isWhiteListedPackage = 
                     mWhiteListAllowWhileInUsePermissionInFgs.contains(callingPackage);
@@ -5032,7 +5021,6 @@ public final class ActiveServices {
             EventLog.writeEvent(0x534e4554, "215003903", callingUid,
                     "callingPackage:" + callingPackage + " does not belong to callingUid:"
                     + callingUid);
->>>>>>> 429d9d9752d478cd7d8fbfff4061bdce4dccd96f
         }
 
         // Is the calling UID a device owner app?
@@ -5069,8 +5057,6 @@ public final class ActiveServices {
 
     private void resetFgsRestrictionLocked(ServiceRecord r) {
         r.mAllowWhileInUsePermissionInFgs = false;
-<<<<<<< HEAD
-=======
         r.mLastSetFgsRestrictionTime = 0;
     }
 
@@ -5089,6 +5075,5 @@ public final class ActiveServices {
         final int packageUid = mAm.getPackageManagerInternalLocked()
                 .getPackageUid(packageName, PackageManager.MATCH_DEBUG_TRIAGED_MISSING, userId);
         return UserHandle.isSameApp(uid, packageUid);
->>>>>>> 429d9d9752d478cd7d8fbfff4061bdce4dccd96f
     }
 }
