@@ -491,8 +491,8 @@ public class CrossProfileAppsServiceImpl extends ICrossProfileApps.Stub {
         // their app-op has been revoked.
         maybeKillUid(packageName, uid, hadPermission);
 
-        sendCanInteractAcrossProfilesChangedBroadcast(packageName, UserHandle.of(userId));
-        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode, userId, logMetrics);
+        sendCanInteractAcrossProfilesChangedBroadcast(packageName, UserHandle.of(profileId));
+        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode, logMetrics);
     }
 
     /**
