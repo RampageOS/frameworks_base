@@ -121,7 +121,6 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
-import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.compat.IPlatformCompat;
@@ -1455,16 +1454,14 @@ public class PermissionManagerService extends IPermissionManager.Stub {
             throw new IllegalArgumentException("Unknown package: " + packageName);
         }
 
-        if (!isCustomPermission(packageName)) {
-            bp.enforceDeclaredUsedAndRuntimeOrDevelopment(pkg, ps);
-        }
+        bp.enforceDeclaredUsedAndRuntimeOrDevelopment(pkg, ps);
 
         // If a permission review is required for legacy apps we represent
         // their permissions as always granted runtime ones since we need
         // to keep the review required permission flag per user while an
         // install permission's state is shared across all users.
         if (pkg.getTargetSdkVersion() < Build.VERSION_CODES.M
-                && bp.isRuntime() && !isSpecialRuntimePermission(permName)) {
+                && bp.isRuntime()) {
             return;
         }
 
@@ -1516,8 +1513,7 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                     + permName + " for package " + packageName);
         }
 
-        if (pkg.getTargetSdkVersion() < Build.VERSION_CODES.M
-                && !isSpecialRuntimePermission(permName)) {
+        if (pkg.getTargetSdkVersion() < Build.VERSION_CODES.M) {
             Slog.w(TAG, "Cannot grant runtime permission to a legacy app");
             return;
         }
@@ -1620,16 +1616,14 @@ public class PermissionManagerService extends IPermissionManager.Stub {
             throw new IllegalArgumentException("Unknown permission: " + permName);
         }
 
-        if (!isCustomPermission(packageName)) {
-            bp.enforceDeclaredUsedAndRuntimeOrDevelopment(pkg, ps);
-        }
+        bp.enforceDeclaredUsedAndRuntimeOrDevelopment(pkg, ps);
 
         // If a permission review is required for legacy apps we represent
         // their permissions as always granted runtime ones since we need
         // to keep the review required permission flag per user while an
         // install permission's state is shared across all users.
         if (pkg.getTargetSdkVersion() < Build.VERSION_CODES.M
-                && bp.isRuntime() && !isSpecialRuntimePermission(bp.name)) {
+                && bp.isRuntime()) {
             return;
         }
 
@@ -1853,8 +1847,7 @@ public class PermissionManagerService extends IPermissionManager.Stub {
 
             // If this permission was granted by default or role, make sure it is.
             if ((oldFlags & FLAG_PERMISSION_GRANTED_BY_DEFAULT) != 0
-                    || (oldFlags & FLAG_PERMISSION_GRANTED_BY_ROLE) != 0
-                    || isSpecialRuntimePermission(bp.getName())) {
+                    || (oldFlags & FLAG_PERMISSION_GRANTED_BY_ROLE) != 0) {
                 // PermissionPolicyService will handle the app op for runtime permissions later.
                 grantRuntimePermissionInternal(permName, packageName, false,
                         Process.SYSTEM_UID, userId, delayingPermCallback);
@@ -2653,10 +2646,6 @@ public class PermissionManagerService extends IPermissionManager.Stub {
         }
     }
 
-    public static boolean isSpecialRuntimePermission(final String permission) {
-        return Manifest.permission.OTHER_SENSORS.equals(permission);
-    }
-
     /**
      * Restore the permission state for a package.
      *
@@ -2838,11 +2827,8 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                                     upgradedActivityRecognitionPermission = splitPermName;
                                     newImplicitPermissions.add(permName);
 
-                                if (DEBUG_PERMISSIONS) {
-                                    Slog.i(TAG, permName + " is newly added for " + friendlyName);
                                     if (DEBUG_PERMISSIONS) {
-                                        Slog.i(TAG, permName + " is newly added for "
-                                                + pkg.getPackageName());
+                                        Slog.i(TAG, permName + " is newly added for " + friendlyName);
                                     }
                                     break;
                                 }
@@ -3010,14 +2996,6 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                                                     == PERMISSION_OPERATION_FAILURE) {
                                                 wasChanged = true;
                                             }
-                                        }
-                                    }
-
-                                    if (isSpecialRuntimePermission(bp.name) &&
-                                            origPermissions.getRuntimePermissionState(bp.name, userId) == null) {
-                                        if (permissionsState.grantRuntimePermission(bp, userId)
-                                                != PERMISSION_OPERATION_FAILURE) {
-                                            wasChanged = true;
                                         }
                                     }
                                 } else {
@@ -3982,7 +3960,7 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                     && (grantedPermissions == null
                            || ArrayUtils.contains(grantedPermissions, permission))) {
                 final int flags = permissionsState.getPermissionFlags(permission, userId);
-                if (supportsRuntimePermissions || isSpecialRuntimePermission(bp.name)) {
+                if (supportsRuntimePermissions) {
                     // Installer cannot change immutable permissions.
                     if ((flags & immutableFlags) == 0) {
                         grantRuntimePermissionInternal(permission, pkg.getPackageName(), false,
@@ -3998,17 +3976,6 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                 }
             }
         }
-    }
-
-    private boolean isCustomPermission(String packageName) {
-        String[] apps = mContext.getResources().getStringArray(
-                R.array.config_customPermissionsList);
-        for(String app : apps) {
-            if (packageName.equals(app)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void setWhitelistedRestrictedPermissionsForUsers(@NonNull AndroidPackage pkg,
