@@ -12611,18 +12611,9 @@ public class PackageManagerService extends IPackageManager.Stub
                 // won't be granted yet, hence new packages are no problem.
                 final ArrayList<String> allPackageNames = new ArrayList<>(mPackages.keySet());
 
-                AsyncTask.execute(() -> {
-                    if (hasOldPkg) {
+                AsyncTask.execute(() ->
                         mPermissionManager.revokeRuntimePermissionsIfGroupChanged(pkg, oldPkg,
-                                allPackageNames);
-                        mPermissionManager.revokeStoragePermissionsIfScopeExpanded(pkg, oldPkg);
-                        mPermissionManager.onPackageUpdated(pkg, oldPkg, allPackageNames);
-                    }
-                    if (hasPermissionDefinitionChanges) {
-                        mPermissionManager.revokeRuntimePermissionsIfPermissionDefinitionChanged(
-                                permissionsWithChangedDefinition, allPackageNames);
-                    }
-                });
+                                allPackageNames));
             }
         }
 
