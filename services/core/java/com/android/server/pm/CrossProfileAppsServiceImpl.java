@@ -492,7 +492,7 @@ public class CrossProfileAppsServiceImpl extends ICrossProfileApps.Stub {
         maybeKillUid(packageName, uid, hadPermission);
 
         sendCanInteractAcrossProfilesChangedBroadcast(packageName, UserHandle.of(profileId));
-        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode, logMetrics);
+        maybeLogSetInteractAcrossProfilesAppOp(packageName, newMode,profileId, logMetrics);
     }
 
     /**
