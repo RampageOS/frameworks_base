@@ -5204,9 +5204,8 @@ public final class Settings {
          */
         public static final String WAKE_WHEN_PLUGGED_OR_UNPLUGGED = "wake_when_plugged_or_unplugged";
 
-        /**
-<<<<<<< HEAD
-         * Whether to display our aex logo in the statusbar for extra swag
+         /**
+         * Whether to display our logo in the statusbar for extra swag
          * @hide
          */
         public static final String STATUS_BAR_LOGO = "status_bar_logo";
@@ -6095,8 +6094,6 @@ public final class Settings {
         public static final String NOTIFICATION_BG_ALPHA = "notification_bg_alpha";
 
         /**
-=======
->>>>>>> parent of 49eafe6b561 (AEX logo in the status bar [1/2])
          * Keys we no longer back up under the current schema, but want to continue to
          * process when restoring historical backup datasets.
          *
