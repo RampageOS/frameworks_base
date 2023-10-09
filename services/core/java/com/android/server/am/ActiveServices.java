@@ -2517,6 +2517,11 @@ public final class ActiveServices {
                             throw new SecurityException("BIND_EXTERNAL_SERVICE failed, "
                                     + className + " is not an isolatedProcess");
                         }
+                        if (AppGlobals.getPackageManager().getPackageUid(callingPackage,
+                                0, userId) != callingUid) {
+                            throw new SecurityException("BIND_EXTERNAL_SERVICE failed, "
+                                    + "calling package not owned by calling UID ");
+                        }
                         // Run the service under the calling package's application.
                         ApplicationInfo aInfo = AppGlobals.getPackageManager().getApplicationInfo(
                                 callingPackage, ActivityManagerService.STOCK_PM_FLAGS, userId);
@@ -5001,8 +5006,17 @@ public final class ActiveServices {
             return true;
         }
 
-        if (mAm.mInternal.isTempAllowlistedForFgsWhileInUse(callingUid)) {
-            return true;
+
+        if (verifyPackage(callingPackage, callingUid)) { 
+            final boolean isWhiteListedPackage = 
+                    mWhiteListAllowWhileInUsePermissionInFgs.contains(callingPackage);
+            if (isWhiteListedPackage) {
+                return true;
+            }
+        } else {
+            EventLog.writeEvent(0x534e4554, "215003903", callingUid,
+                    "callingPackage:" + callingPackage + " does not belong to callingUid:"
+                    + callingUid);
         }
 
         if (verifyPackage(callingPackage, callingUid)) {

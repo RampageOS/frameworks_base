@@ -188,7 +188,6 @@ import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.ServiceManager;
 import android.os.ShellCallback;
-import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -482,6 +481,13 @@ public class NotificationManagerService extends SystemService {
     final ArrayMap<Integer, ArrayMap<String, String>> mAutobundledSummaries = new ArrayMap<>();
     final ArrayList<ToastRecord> mToastQueue = new ArrayList<>();
     final ArrayMap<String, NotificationRecord> mSummaryByGroupKey = new ArrayMap<>();
+    // Keep track of `CancelNotificationRunnable`s which have been delayed due to awaiting
+    // enqueued notifications to post
+    @GuardedBy("mNotificationLock")
+    final ArrayMap<NotificationRecord, ArrayList<CancelNotificationRunnable>> mDelayedCancelations =
+            new ArrayMap<>();
+
+    private KeyguardManager mKeyguardManager;
 
     // Keep track of `CancelNotificationRunnable`s which have been delayed due to awaiting
     // enqueued notifications to post
@@ -1753,34 +1759,39 @@ public class NotificationManagerService extends SystemService {
             return (haystack & needle) != 0;
         }
 
-        public boolean isInLockDownMode() {
-            return mIsInLockDownMode;
+        // Return whether the user is in lockdown mode.
+        // If the flag is not set, we assume the user is not in lockdown.
+        public boolean isInLockDownMode(int userId) {
+            return mUserInLockDownMode.get(userId, false);
         }
 
         @Override
         public synchronized void onStrongAuthRequiredChanged(int userId) {
             boolean userInLockDownModeNext = containsFlag(getStrongAuthForUser(userId),
                     STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN);
-            mUserInLockDownMode.put(userId, userInLockDownModeNext);
-            boolean isInLockDownModeNext = mUserInLockDownMode.indexOfValue(true) != -1;
 
-            if (mIsInLockDownMode == isInLockDownModeNext) {
+            // Nothing happens if the lockdown mode of userId keeps the same.
+            if (userInLockDownModeNext == isInLockDownMode(userId)) {
                 return;
             }
 
-            if (isInLockDownModeNext) {
-                cancelNotificationsWhenEnterLockDownMode();
+            // When the lockdown mode is changed, we perform the following steps.
+            // If the userInLockDownModeNext is true, all the function calls to
+            // notifyPostedLocked and notifyRemovedLocked will not be executed.
+            // The cancelNotificationsWhenEnterLockDownMode calls notifyRemovedLocked
+            // and postNotificationsWhenExitLockDownMode calls notifyPostedLocked.
+            // So we shall call cancelNotificationsWhenEnterLockDownMode before
+            // we set mUserInLockDownMode as true.
+            // On the other hand, if the userInLockDownModeNext is false, we shall call
+            // postNotificationsWhenExitLockDownMode after we put false into mUserInLockDownMode
+            if (userInLockDownModeNext) {
+                cancelNotificationsWhenEnterLockDownMode(userId);
             }
 
-            // When the mIsInLockDownMode is true, both notifyPostedLocked and
-            // notifyRemovedLocked will be dismissed. So we shall call
-            // cancelNotificationsWhenEnterLockDownMode before we set mIsInLockDownMode
-            // as true and call postNotificationsWhenExitLockDownMode after we set
-            // mIsInLockDownMode as false.
-            mIsInLockDownMode = isInLockDownModeNext;
+            mUserInLockDownMode.put(userId, userInLockDownModeNext);
 
-            if (!isInLockDownModeNext) {
-                postNotificationsWhenExitLockDownMode();
+            if (!userInLockDownModeNext) {
+                postNotificationsWhenExitLockDownMode(userId);
             }
         }
     }
@@ -2445,7 +2456,7 @@ public class NotificationManagerService extends SystemService {
                 bubbsExtractor.setShortcutHelper(mShortcutHelper);
             }
             registerNotificationPreferencesPullers();
-            mLockPatternUtils.registerStrongAuthTracker(mStrongAuthTracker);
+            new LockPatternUtils(getContext()).registerStrongAuthTracker(mStrongAuthTracker);
         } else if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             // This observer will force an update when observe is called, causing us to
             // bind to listener services.
@@ -4523,7 +4534,16 @@ public class NotificationManagerService extends SystemService {
             }
             enforcePolicyAccess(Binder.getCallingUid(), "addAutomaticZenRule");
 
-            return mZenModeHelper.addAutomaticZenRule(pkg, automaticZenRule,
+            // If the calling app is the system (from any user), take the package name from the
+            // rule's owner rather than from the caller's package.
+            String rulePkg = pkg;
+            if (isCallingAppIdSystem()) {
+                if (automaticZenRule.getOwner() != null) {
+                    rulePkg = automaticZenRule.getOwner().getPackageName();
+                }
+            }
+
+            return mZenModeHelper.addAutomaticZenRule(rulePkg, automaticZenRule,
                     "addAutomaticZenRule");
         }
 
@@ -4970,6 +4990,11 @@ public class NotificationManagerService extends SystemService {
                 boolean granted) {
             Objects.requireNonNull(listener);
             checkCallerIsSystemOrShell();
+            if (granted && listener.flattenToString().length()
+                    > NotificationManager.MAX_SERVICE_COMPONENT_NAME_LENGTH) {
+                throw new IllegalArgumentException(
+                        "Component name too long: " + listener.flattenToString());
+            }
             final long identity = Binder.clearCallingIdentity();
             try {
                 if (mAllowedManagedServicePackages.test(
@@ -5881,8 +5906,10 @@ public class NotificationManagerService extends SystemService {
         // Fix the notification as best we can.
         try {
             fixNotification(notification, pkg, tag, id, userId);
-
         } catch (Exception e) {
+            if (notification.isForegroundService()) {
+                throw new SecurityException("Invalid FGS notification", e);
+            }
             Slog.e(TAG, "Cannot fix notification", e);
             return;
         }
@@ -7083,7 +7110,8 @@ public class NotificationManagerService extends SystemService {
                 && (record.getSuppressedVisualEffects() & SUPPRESSED_EFFECT_STATUS_BAR) != 0;
         if (!record.isUpdate
                 && record.getImportance() > IMPORTANCE_MIN
-                && !suppressedByDnd) {
+                && !suppressedByDnd
+                && isNotificationForCurrentUser(record)) {
             sendAccessibilityEvent(record);
             sentAccessibilityEvent = true;
         }
@@ -8721,11 +8749,14 @@ public class NotificationManagerService extends SystemService {
         }
     }
 
-    private void cancelNotificationsWhenEnterLockDownMode() {
+    private void cancelNotificationsWhenEnterLockDownMode(int userId) {
         synchronized (mNotificationLock) {
             int numNotifications = mNotificationList.size();
             for (int i = 0; i < numNotifications; i++) {
                 NotificationRecord rec = mNotificationList.get(i);
+                if (rec.getUser().getIdentifier() != userId) {
+                    continue;
+                }
                 mListeners.notifyRemovedLocked(rec, REASON_CANCEL_ALL,
                         rec.getStats());
             }
@@ -8733,14 +8764,23 @@ public class NotificationManagerService extends SystemService {
         }
     }
 
-    private void postNotificationsWhenExitLockDownMode() {
+    private void postNotificationsWhenExitLockDownMode(int userId) {
         synchronized (mNotificationLock) {
             int numNotifications = mNotificationList.size();
+            // Set the delay to spread out the burst of notifications.
+            long delay = 0;
             for (int i = 0; i < numNotifications; i++) {
                 NotificationRecord rec = mNotificationList.get(i);
-                mListeners.notifyPostedLocked(rec, rec);
+                if (rec.getUser().getIdentifier() != userId) {
+                    continue;
+                }
+                mHandler.postDelayed(() -> {
+                    synchronized (mNotificationLock) {
+                        mListeners.notifyPostedLocked(rec, rec);
+                    }
+                }, delay);
+                delay += 20;
             }
-
         }
     }
 
@@ -8753,6 +8793,12 @@ public class NotificationManagerService extends SystemService {
     protected boolean isCallingUidSystem() {
         final int uid = Binder.getCallingUid();
         return uid == Process.SYSTEM_UID;
+    }
+
+    protected boolean isCallingAppIdSystem() {
+        final int uid = Binder.getCallingUid();
+        final int appid = UserHandle.getAppId(uid);
+        return appid == Process.SYSTEM_UID;
     }
 
     protected boolean isUidSystemOrPhone(int uid) {
@@ -8943,12 +8989,15 @@ public class NotificationManagerService extends SystemService {
      * notifications visible to the given listener.
      */
     @GuardedBy("mNotificationLock")
-    private NotificationRankingUpdate makeRankingUpdateLocked(ManagedServiceInfo info) {
+    NotificationRankingUpdate makeRankingUpdateLocked(ManagedServiceInfo info) {
         final int N = mNotificationList.size();
         final ArrayList<NotificationListenerService.Ranking> rankings = new ArrayList<>();
 
         for (int i = 0; i < N; i++) {
             NotificationRecord record = mNotificationList.get(i);
+            if (isInLockDownMode(record.getUser().getIdentifier())) {
+                continue;
+            }
             if (!isVisibleToListener(record.getSbn(), info)) {
                 continue;
             }
@@ -8987,8 +9036,8 @@ public class NotificationManagerService extends SystemService {
                 rankings.toArray(new NotificationListenerService.Ranking[0]));
     }
 
-    boolean isInLockDownMode() {
-        return mStrongAuthTracker.isInLockDownMode();
+    boolean isInLockDownMode(int userId) {
+        return mStrongAuthTracker.isInLockDownMode(userId);
     }
 
     boolean hasCompanionDevice(ManagedServiceInfo info) {
@@ -9023,7 +9072,8 @@ public class NotificationManagerService extends SystemService {
                 ServiceManager.getService(Context.COMPANION_DEVICE_SERVICE));
     }
 
-    private boolean isVisibleToListener(StatusBarNotification sbn, ManagedServiceInfo listener) {
+    @VisibleForTesting
+    boolean isVisibleToListener(StatusBarNotification sbn, ManagedServiceInfo listener) {
         if (!listener.enabledAndUserMatches(sbn.getUserId())) {
             return false;
         }
@@ -9709,7 +9759,7 @@ public class NotificationManagerService extends SystemService {
         @GuardedBy("mNotificationLock")
         void notifyPostedLocked(NotificationRecord r, NotificationRecord old,
                 boolean notifyAllListeners) {
-            if (isInLockDownMode()) {
+            if (isInLockDownMode(r.getUser().getIdentifier())) {
                 return;
             }
 
@@ -9809,7 +9859,7 @@ public class NotificationManagerService extends SystemService {
         @GuardedBy("mNotificationLock")
         public void notifyRemovedLocked(NotificationRecord r, int reason,
                 NotificationStats notificationStats) {
-            if (isInLockDownMode()) {
+            if (isInLockDownMode(r.getUser().getIdentifier())) {
                 return;
             }
 
