@@ -23,6 +23,7 @@ import android.Manifest;
 import android.app.ActivityManager;
 import android.app.AppGlobals;
 import android.app.AppOpsManager;
+import android.app.BroadcastOptions;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PackageDeleteObserver;
@@ -299,11 +300,6 @@ public class PackageInstallerService extends IPackageInstaller.Stub implements
     @GuardedBy("mSessions")
     private void reconcileStagesLocked(String volumeUuid) {
         final ArraySet<File> unclaimedStages = getStagingDirsOnVolume(volumeUuid);
-
-        // We also need to clean up orphaned staging directory for staged sessions
-        final File stagedSessionStagingDir = Environment.getDataStagingDirectory(volumeUuid);
-        unclaimedStages.addAll(newArraySet(stagedSessionStagingDir.listFiles()));
-
         // Ignore stages claimed by active sessions
         for (int i = 0; i < mSessions.size(); i++) {
             final PackageInstallerSession session = mSessions.valueAt(i);
@@ -1153,7 +1149,10 @@ public class PackageInstallerService extends IPackageInstaller.Stub implements
                     PackageInstaller.STATUS_PENDING_USER_ACTION);
             fillIn.putExtra(Intent.EXTRA_INTENT, intent);
             try {
-                mTarget.sendIntent(mContext, 0, fillIn, null, null);
+                final BroadcastOptions options = BroadcastOptions.makeBasic();
+                options.setPendingIntentBackgroundActivityLaunchAllowed(false);
+                mTarget.sendIntent(mContext, 0, fillIn, null /* onFinished*/,
+                        null /* handler */, null /* requiredPermission */, options.toBundle());
             } catch (SendIntentException ignored) {
             }
         }
@@ -1178,7 +1177,10 @@ public class PackageInstallerService extends IPackageInstaller.Stub implements
                     PackageManager.deleteStatusToString(returnCode, msg));
             fillIn.putExtra(PackageInstaller.EXTRA_LEGACY_STATUS, returnCode);
             try {
-                mTarget.sendIntent(mContext, 0, fillIn, null, null);
+                final BroadcastOptions options = BroadcastOptions.makeBasic();
+                options.setPendingIntentBackgroundActivityLaunchAllowed(false);
+                mTarget.sendIntent(mContext, 0, fillIn, null /* onFinished*/,
+                        null /* handler */, null /* requiredPermission */, options.toBundle());
             } catch (SendIntentException ignored) {
             }
         }
