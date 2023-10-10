@@ -4872,8 +4872,7 @@ public class PermissionManagerService extends IPermissionManager.Stub {
                     oldPackage, mDefaultPermissionCallback);
         }
 
-        @Override
-        public void revokeRuntimePermissionsIfGroupChanged(
+        /*
          * If the app is updated, then some checks need to be performed to ensure the
          * package is not attempting to expoit permission changes across API boundaries.
          * @param newPackage The new package that was installed

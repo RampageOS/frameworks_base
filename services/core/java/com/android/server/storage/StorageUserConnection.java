@@ -203,26 +203,12 @@ public final class StorageUserConnection {
         }
     }
 
-    private void prepareRemote() throws ExternalStorageServiceException {
-        try {
-            waitForLatch(mActiveConnection.bind(), "remote_prepare_user " + mUserId);
-        } catch (IllegalStateException | TimeoutException e) {
-            throw new ExternalStorageServiceException("Failed to prepare remote", e);
-        }
+    @FunctionalInterface
+    interface AsyncStorageServiceCall {
+        void run(@NonNull IExternalStorageService service, RemoteCallback callback) throws
+                RemoteException;
     }
 
-    private void waitForLatch(CountDownLatch latch, String reason) throws TimeoutException {
-        try {
-            if (!latch.await(DEFAULT_REMOTE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                // TODO(b/140025078): Call ActivityManager ANR API?
-                Slog.wtf(TAG, "Failed to bind to the ExternalStorageService for user " + mUserId);
-                throw new TimeoutException("Latch wait for " + reason + " elapsed");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Latch wait for " + reason + " interrupted");
-        }
-    }
 
     private final class ActiveConnection implements AutoCloseable {
         private final Object mLock = new Object();
@@ -401,32 +387,19 @@ public final class StorageUserConnection {
                 };
 
                 Slog.i(TAG, "Binding to the ExternalStorageService for user " + mUserId);
-                if (mIsDemoUser) {
-                    // Schedule on a worker thread for demo user to avoid deadlock
-                    if (mContext.bindServiceAsUser(new Intent().setComponent(name),
-                                    mServiceConnection,
-                                    Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
-                                    mHandlerThread.getThreadHandler(),
-                                    UserHandle.of(mUserId))) {
-                        Slog.i(TAG, "Bound to the ExternalStorageService for user " + mUserId);
-                        return mLatch;
-                    } else {
-                        mIsConnecting = false;
-                        throw new ExternalStorageServiceException(
-                                "Failed to bind to the ExternalStorageService for user " + mUserId);
-                    }
+                // Schedule on a worker thread, because the system server main thread can be
+                // very busy early in boot.
+                if (mContext.bindServiceAsUser(new Intent().setComponent(name),
+                                mServiceConnection,
+                                Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
+                                mHandlerThread.getThreadHandler(),
+                                UserHandle.of(mUserId))) {
+                    Slog.i(TAG, "Bound to the ExternalStorageService for user " + mUserId);
+                    mRemoteFuture = future;
+                    return future;
                 } else {
-                    if (mContext.bindServiceAsUser(new Intent().setComponent(name),
-                                    mServiceConnection,
-                                    Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
-                                    UserHandle.of(mUserId))) {
-                        Slog.i(TAG, "Bound to the ExternalStorageService for user " + mUserId);
-                        return mLatch;
-                    } else {
-                        mIsConnecting = false;
-                        throw new ExternalStorageServiceException(
-                                "Failed to bind to the ExternalStorageService for user " + mUserId);
-                    }
+                    throw new ExternalStorageServiceException(
+                            "Failed to bind to the ExternalStorageService for user " + mUserId);
                 }
             }
         }

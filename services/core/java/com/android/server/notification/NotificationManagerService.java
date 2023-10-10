@@ -487,16 +487,10 @@ public class NotificationManagerService extends SystemService {
     final ArrayMap<NotificationRecord, ArrayList<CancelNotificationRunnable>> mDelayedCancelations =
             new ArrayMap<>();
 
-    private KeyguardManager mKeyguardManager;
-
-    // Keep track of `CancelNotificationRunnable`s which have been delayed due to awaiting
-    // enqueued notifications to post
-    @GuardedBy("mNotificationLock")
-    final ArrayMap<NotificationRecord, ArrayList<CancelNotificationRunnable>> mDelayedCancelations =
-            new ArrayMap<>();
     final ArrayMap<String, Long> mLastSoundTimestamps = new ArrayMap<>();
 
     private KeyguardManager mKeyguardManager;
+
 
     // The last key in this list owns the hardware.
     ArrayList<String> mLights = new ArrayList<>();
@@ -5752,7 +5746,7 @@ public class NotificationManagerService extends SystemService {
                 mUsageStats.dump(pw, "    ", filter);
             }
 
-            long now = SystemClock.elapsedRealtime();
+            long now = mSystemClock.elapsedRealtime();
             pw.println("\n  Last notification sound timestamps:");
             for (Map.Entry<String, Long> entry : mLastSoundTimestamps.entrySet()) {
                 pw.print("    " + entry.getKey() + " -> ");
@@ -7193,7 +7187,7 @@ public class NotificationManagerService extends SystemService {
         }
         if (buzz || beep) {
             mLastSoundTimestamps.put(generateLastSoundTimeoutKey(record),
-                    SystemClock.elapsedRealtime());
+                    mSystemClock.elapsedRealtime());
         }
         final int buzzBeepBlink = (buzz ? 1 : 0) | (beep ? 2 : 0) | (blink ? 4 : 0);
         if (buzzBeepBlink > 0) {
@@ -7236,7 +7230,7 @@ public class NotificationManagerService extends SystemService {
         if (value == null) {
             return false;
         }
-        return SystemClock.elapsedRealtime() - value < timeoutMillis;
+        return mSystemClock.elapsedRealtime() - value < timeoutMillis;
     }
 
     private String generateLastSoundTimeoutKey(NotificationRecord record) {
@@ -9908,10 +9902,6 @@ public class NotificationManagerService extends SystemService {
          */
         @GuardedBy("mNotificationLock")
         public void notifyRankingUpdateLocked(List<NotificationRecord> changedHiddenNotifications) {
-            if (isInLockDownMode()) {
-                return;
-            }
-
             boolean isHiddenRankingUpdate = changedHiddenNotifications != null
                     && changedHiddenNotifications.size() > 0;
 

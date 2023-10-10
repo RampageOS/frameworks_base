@@ -166,18 +166,6 @@ public class ScreenshotHelper {
     private IBinder mScreenshotService = null;
     private ServiceConnection mScreenshotConnection = null;
     private final Context mContext;
-    private final StitchImageUtility mStitchImageUtility;
-
-    private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            synchronized (mScreenshotLock) {
-                if (ACTION_USER_SWITCHED.equals(intent.getAction())) {
-                    resetConnection();
-                }
-            }
-        }
-    };
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -337,10 +325,7 @@ public class ScreenshotHelper {
             ScreenshotRequest screenshotRequest, @Nullable Consumer<Uri> completionConsumer,
             final String focusedPackageName) {
         synchronized (mScreenshotLock) {
-            if (screenshotType == WindowManager.TAKE_SCREENSHOT_FULLSCREEN &&
-                    mStitchImageUtility.takeScreenShot(focusedPackageName)){
-                return;
-            }
+
             final Runnable mScreenshotTimeout = () -> {
                 synchronized (mScreenshotLock) {
                     if (mScreenshotConnection != null) {
@@ -368,9 +353,7 @@ public class ScreenshotHelper {
                             break;
                         case SCREENSHOT_MSG_PROCESS_COMPLETE:
                             synchronized (mScreenshotLock) {
-                                if (myConn != null && mScreenshotConnection == myConn) {
-                                    resetConnection();
-                                }
+                                resetConnection();
                             }
                             break;
                     }

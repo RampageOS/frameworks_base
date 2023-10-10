@@ -267,20 +267,6 @@ public final class AutomaticZenRule implements Parcelable {
         return mPkg;
     }
 
-    /**
-     * @hide
-     */
-    public void setPackageName(String pkgName) {
-        mPkg = pkgName;
-    }
-
-    /**
-     * @hide
-     */
-    public String getPackageName() {
-        return mPkg;
-    }
-
     @Override
     public int describeContents() {
         return 0;
